@@ -1,5 +1,11 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import { AppSelector } from './AppSelector'
+
+interface App {
+  displayName: string
+  processName: string
+}
 
 interface AddBlockModalProps {
   isOpen: boolean
@@ -16,17 +22,21 @@ const PRESET_DURATIONS = [
 ]
 
 export function AddBlockModal({ isOpen, onClose, onAdd }: AddBlockModalProps) {
-  const [appName, setAppName] = useState('')
+  const [selectedApp, setSelectedApp] = useState<App | null>(null)
   const [duration, setDuration] = useState(30)
   const [customDuration, setCustomDuration] = useState('')
   const [error, setError] = useState('')
+
+  const handleAppSelect = (app: App) => {
+    setSelectedApp(app)
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
-    if (!appName.trim()) {
-      setError('App name is required')
+    if (!selectedApp) {
+      setError('Please select or enter an app name')
       return
     }
 
@@ -36,10 +46,18 @@ export function AddBlockModal({ isOpen, onClose, onAdd }: AddBlockModalProps) {
       return
     }
 
-    onAdd(appName.trim(), finalDuration || 24 * 60) // Default to 24h if indefinite
-    setAppName('')
+    onAdd(selectedApp.displayName, finalDuration || 24 * 60)
+    setSelectedApp(null)
     setDuration(30)
     setCustomDuration('')
+  }
+
+  const handleClose = () => {
+    setSelectedApp(null)
+    setError('')
+    setDuration(30)
+    setCustomDuration('')
+    onClose()
   }
 
   if (!isOpen) return null
@@ -51,7 +69,7 @@ export function AddBlockModal({ isOpen, onClose, onAdd }: AddBlockModalProps) {
         <div className="flex items-center justify-between p-6 border-b border-border">
           <h2 className="text-xl font-bold text-foreground">Block App</h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Close"
           >
@@ -61,20 +79,12 @@ export function AddBlockModal({ isOpen, onClose, onAdd }: AddBlockModalProps) {
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* App Name */}
-          <div>
-            <label htmlFor="appName" className="block text-sm font-medium text-foreground mb-2">
-              App Name
-            </label>
-            <input
-              id="appName"
-              type="text"
-              placeholder="e.g., TikTok, Instagram, YouTube"
-              value={appName}
-              onChange={(e) => setAppName(e.target.value)}
-              className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:border-blue-500 bg-white"
-            />
-          </div>
+          {/* App Selector */}
+          <AppSelector
+            selectedApp={selectedApp?.displayName || ''}
+            onAppSelect={handleAppSelect}
+            disabled={false}
+          />
 
           {/* Duration Presets */}
           <div>
@@ -129,7 +139,7 @@ export function AddBlockModal({ isOpen, onClose, onAdd }: AddBlockModalProps) {
           <div className="flex gap-3 pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="flex-1 px-4 py-2 border border-border rounded-lg text-foreground font-medium hover:bg-gray-50 transition-colors"
             >
               Cancel

@@ -5,6 +5,7 @@ A modern, Progressive Web Application (PWA) for managing parental controls and b
 ## Features
 
 - **PIN-Protected Access**: Secure authentication with PIN code that survives browser sessions
+- **Windows App Scanning**: Auto-detect installed Windows applications and select them from a searchable list
 - **Real-Time App Blocking**: Block apps with live countdown timers showing remaining block time
 - **Multiple Duration Options**: Choose from preset durations (15 min, 30 min, 1 hour, 2 hours) or set custom durations
 - **Activity Log**: View all block/unblock events with timestamps
@@ -32,13 +33,14 @@ src/
 │   ├── Blocklist.tsx          # Blocked apps list
 │   ├── BlockListItem.tsx      # Individual blocked app item
 │   ├── AddBlockModal.tsx      # Modal to add new blocked app
+│   ├── AppSelector.tsx        # Searchable Windows app selector
 │   ├── ActivityLog.tsx        # Activity log viewer
 │   ├── ConnectionStatus.tsx   # Backend connection indicator
 │   └── LogoutButton.tsx       # Logout button
 ├── hooks/
 │   └── usePWA.ts            # PWA integration hook
 ├── lib/
-│   ├── api.ts               # API client with mock implementation
+│   ├── api.ts               # API client with backend integration
 │   ├── utils.ts             # Utility functions
 │   └── dateUtils.ts         # Date formatting utilities
 ├── App.tsx                  # Main application component
@@ -64,6 +66,7 @@ index.html                  # HTML entry point
 
 - Node.js 16+ 
 - pnpm (or npm/yarn)
+- Windows 10+ (for Windows app scanning feature)
 
 ### Installation
 
@@ -72,12 +75,36 @@ index.html                  # HTML entry point
 pnpm install
 ```
 
-2. Start the development server:
+2. Start the backend server (in one terminal):
+```bash
+pnpm server
+```
+
+The backend server will be available at `http://localhost:3001`
+
+3. Start the frontend development server (in another terminal):
 ```bash
 pnpm dev
 ```
 
 The app will be available at `http://localhost:5173`
+
+**Or start both simultaneously:**
+```bash
+pnpm dev:all
+```
+
+### Backend Server (Windows App Scanner)
+
+The backend server (`server.js`) provides REST API endpoints for scanning and retrieving installed Windows applications. It automatically scans the Program Files directories and returns a list of installed applications.
+
+**API Endpoints:**
+
+- `GET /api/installed-apps` - Returns list of all installed applications
+- `GET /api/app/:processName` - Returns details for a specific app
+- `GET /api/running-processes` - Returns list of currently running processes
+
+The server includes mock data fallback for development purposes, so it works even if Windows app scanning fails.
 
 ### Building for Production
 
@@ -105,12 +132,15 @@ pnpm preview
 ### Blocking Apps
 
 1. Click "Block New App" button on the Dashboard
-2. Enter the app name (e.g., "TikTok", "Instagram")
+2. Select an app from the list:
+   - The "Select App" dropdown shows all installed Windows applications (auto-detected from your system)
+   - Use the search box to filter apps by name
+   - If your app isn't in the list, click "Can't find your app? Enter manually" to add it manually
 3. Select a duration:
-   - Quick presets: 15 min, 30 min, 1 hour, 2 hours
+   - Quick presets: 15 min, 30 min, 1 hour, 2 hours, Indefinite
    - Or enter a custom duration in minutes
 4. Click "Block App"
-5. The app appears in "Currently Blocked" section with live countdown
+5. The app appears in "Currently Blocked" section with live countdown timer
 
 ### Managing Blocked Apps
 

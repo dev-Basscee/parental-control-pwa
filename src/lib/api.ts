@@ -18,6 +18,13 @@ export interface ActivityLog {
   details?: string
 }
 
+export interface InstalledApp {
+  displayName: string
+  processName: string
+  icon?: string
+  path?: string
+}
+
 // Mock data for development
 const mockBlocklist: BlockedApp[] = []
 const mockActivityLog: ActivityLog[] = []
@@ -150,6 +157,45 @@ export const api = {
       return mockActivityLog.sort((a, b) => b.timestamp - a.timestamp)
     } catch (error) {
       console.error('[v0] Failed to get activity log:', error)
+      return []
+    }
+  },
+
+  // Installed apps endpoints
+  async getInstalledApps(): Promise<InstalledApp[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/installed-apps`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch installed apps')
+      }
+
+      const apps = await response.json()
+      return apps || []
+    } catch (error) {
+      console.error('[v0] Failed to get installed apps:', error)
+      return []
+    }
+  },
+
+  async getRunningProcesses(): Promise<{ name: string; pid: number }[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/running-processes`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch running processes')
+      }
+
+      const processes = await response.json()
+      return processes || []
+    } catch (error) {
+      console.error('[v0] Failed to get running processes:', error)
       return []
     }
   },
