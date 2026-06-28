@@ -139,49 +139,28 @@ try {
 }
 Pop-Location
 
-# ── Step 7: Create Windows services via NSSM ─────────────────────────────────
+# ── Step 7: Create Windows services via node-windows ─────────────────────────────────
 Write-Step 7 "Registering Windows services (auto-start on boot)..."
 
-# Use node-windows (already a dependency) to register services
-# We'll use sc.exe directly for simplicity and reliability
-
-$nodeExe   = (Get-Command node).Source
-$agentScript  = Join-Path $INSTALL_DIR "agent\src\index.js"
-$serverScript = Join-Path $INSTALL_DIR "server.js"
-
-# Helper to register a service using node-windows
-function Register-NodeService($serviceName, $scriptPath, $workDir) {
-    # Check if already registered
-    $existing = sc.exe query $serviceName 2>$null
-    if ($existing -match "RUNNING|STOPPED") {
-        Write-Host "      $serviceName already registered, skipping..." -ForegroundColor Gray
-        return
-    }
-
-    # Create a wrapper .cmd file
-    $wrapperPath = Join-Path $INSTALL_DIR "$serviceName.cmd"
-    "@echo off`r`ncd /d `"$workDir`"`r`n`"$nodeExe`" `"$scriptPath`"`r`n" | Set-Content $wrapperPath -Encoding ASCII
-
-    # Register with sc.exe
-    $binPath = "`"$env:SystemRoot\System32\cmd.exe`" /c `"$wrapperPath`""
-    sc.exe create $serviceName binPath= $binPath start= auto DisplayName= $serviceName | Out-Null
-    sc.exe description $serviceName "Guardian Parental Control - $serviceName" | Out-Null
-
-    # Configure recovery (restart on failure)
-    sc.exe failure $serviceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
+Push-Location (Join-Path $INSTALL_DIR "agent")
+try {
+    # Run the existing install-service.js which uses node-windows for the agent
+    node scripts/install-service.js
+    Write-OK "Agent Service registered via node-windows"
+    
+    # Run the install-server-service.js which uses node-windows for the server
+    node scripts/install-server-service.js
+    Write-OK "Server Service registered via node-windows"
+} catch {
+    Write-Fail "Failed to register services: $_"
+    Pop-Location; pause; exit 1
 }
+Pop-Location
 
-Register-NodeService $SERVICE_NAME $agentScript $INSTALL_DIR
-Register-NodeService $SERVER_NAME  $serverScript $INSTALL_DIR
-Write-OK "Services registered"
+# ── Step 8: Verify services ────────────────────────────────────────────────────
+Write-Step 8 "Verifying services..."
 
-# ── Step 8: Start services ────────────────────────────────────────────────────
-Write-Step 8 "Starting services..."
-
-sc.exe start $SERVICE_NAME | Out-Null
-Start-Sleep -Seconds 2
-sc.exe start $SERVER_NAME  | Out-Null
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 3
 
 $agentRunning  = (sc.exe query $SERVICE_NAME) -match "RUNNING"
 $serverRunning = (sc.exe query $SERVER_NAME)  -match "RUNNING"
