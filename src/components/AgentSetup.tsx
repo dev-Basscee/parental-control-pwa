@@ -6,7 +6,7 @@ interface Props {
 }
 
 export function AgentSetup({ onCheckAgain, onSkip }: Props) {
-  const installCommand = 'irm https://knoxs.vercel.app/install-agent.ps1 | iex'
+  const installCommand = `irm ${window.location.origin}/install-agent.ps1 | iex`
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
