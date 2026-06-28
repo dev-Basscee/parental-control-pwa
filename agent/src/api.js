@@ -141,28 +141,16 @@ router.get('/logs', (req, res) => {
   res.json(store.getLogs().slice(0, limit))
 })
 
-// ─── Legacy pass-through: installed-apps (kept for dashboard compatibility) ───
-router.get('/installed-apps', (req, res) => {
-  res.json(MOCK_APPS)
-})
+const { getInstalledApps } = require('./appScanner')
 
-const MOCK_APPS = [
-  { displayName: 'Google Chrome',        processName: 'chrome.exe' },
-  { displayName: 'Mozilla Firefox',      processName: 'firefox.exe' },
-  { displayName: 'Microsoft Edge',       processName: 'msedge.exe' },
-  { displayName: 'Discord',              processName: 'Discord.exe' },
-  { displayName: 'Spotify',              processName: 'Spotify.exe' },
-  { displayName: 'Steam',                processName: 'steam.exe' },
-  { displayName: 'Epic Games Launcher',  processName: 'EpicGamesLauncher.exe' },
-  { displayName: 'Visual Studio Code',   processName: 'Code.exe' },
-  { displayName: 'Notepad++',            processName: 'notepad++.exe' },
-  { displayName: 'VLC Media Player',     processName: 'vlc.exe' },
-  { displayName: 'OBS Studio',           processName: 'obs64.exe' },
-  { displayName: 'Slack',                processName: 'Slack.exe' },
-  { displayName: 'Telegram',             processName: 'Telegram.exe' },
-  { displayName: 'WhatsApp',             processName: 'WhatsApp.exe' },
-  { displayName: 'Roblox',               processName: 'RobloxPlayerBeta.exe' },
-  { displayName: 'Minecraft (Java)',      processName: 'javaw.exe' },
-].sort((a, b) => a.displayName.localeCompare(b.displayName))
+// ─── GET /api/installed-apps ──────────────────────────────────────────────────
+router.get('/installed-apps', async (req, res) => {
+  try {
+    const apps = await getInstalledApps()
+    res.json(apps)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve installed apps' })
+  }
+})
 
 module.exports = router
