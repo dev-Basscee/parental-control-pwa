@@ -41,7 +41,14 @@ export default function App () {
   return (
     <>
       {view === 'setup' && (
-        <AgentSetup onCheckAgain={init} />
+        <AgentSetup 
+          onCheckAgain={init} 
+          onSkip={() => {
+            if (!auth.hasPin()) setView('onboarding')
+            else if (auth.isAuthenticated()) setView('dashboard')
+            else setView('login')
+          }}
+        />
       )}
       {view === 'onboarding' && (
         <Onboarding onComplete={() => setView('dashboard')} />

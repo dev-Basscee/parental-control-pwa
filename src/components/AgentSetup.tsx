@@ -2,9 +2,10 @@ import { ShieldAlert, Download, Terminal, CheckCircle2 } from 'lucide-react'
 
 interface Props {
   onCheckAgain: () => void
+  onSkip: () => void
 }
 
-export function AgentSetup({ onCheckAgain }: Props) {
+export function AgentSetup({ onCheckAgain, onSkip }: Props) {
   const installCommand = 'irm https://knoxs.vercel.app/install-agent.ps1 | iex'
 
   return (
@@ -97,12 +98,18 @@ export function AgentSetup({ onCheckAgain }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="bg-slate-50 border-t border-slate-100 p-6">
+        <div className="bg-slate-50 border-t border-slate-100 p-6 space-y-3">
           <button 
             onClick={onCheckAgain}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-xl transition-all shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 hover:-translate-y-0.5"
           >
             I've run the installer — Check Again
+          </button>
+          <button 
+            onClick={onSkip}
+            className="w-full bg-white hover:bg-slate-100 text-slate-600 font-medium py-3 rounded-xl transition-all border border-slate-200"
+          >
+            Skip for now — View Dashboard
           </button>
         </div>
 
