@@ -5,6 +5,8 @@ import { Login } from './components/Login'
 import { Dashboard } from './components/Dashboard'
 import { AgentSetup } from './components/AgentSetup'
 
+import { InstallBanner } from './components/InstallBanner'
+
 type View = 'loading' | 'setup' | 'onboarding' | 'login' | 'dashboard'
 
 export default function App () {
@@ -40,6 +42,7 @@ export default function App () {
 
   return (
     <>
+      <InstallBanner />
       {view === 'setup' && (
         <AgentSetup 
           onCheckAgain={init} 
