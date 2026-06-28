@@ -179,7 +179,7 @@ Write-Host ""
 Write-Host "  Guardian is now running and will start automatically on every boot." -ForegroundColor White
 Write-Host ""
 Write-Host "  Open your browser and visit:" -ForegroundColor Gray
-Write-Host "    https://knoxs.vercel.app" -ForegroundColor Cyan
+Write-Host "    https://parental-control-pwa.vercel.app" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  To uninstall:" -ForegroundColor Gray
 Write-Host "    sc.exe stop  ParentalControlAgent ; sc.exe delete ParentalControlAgent" -ForegroundColor Gray
