@@ -25,6 +25,7 @@
     "noFallthroughCasesInSwitch": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
+    "noEmit": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",

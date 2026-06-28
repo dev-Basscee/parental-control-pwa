@@ -1,52 +1,48 @@
 {
+  "id": "parental-control-pwa",
   "name": "Parental Control",
-  "short_name": "Parental Control",
-  "description": "A PWA for managing parental controls and app blocking",
+  "short_name": "Guardian",
+  "description": "Block apps and monitor activity on this Windows PC.",
+  "lang": "en",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "theme_color": "#2563eb",
-  "background_color": "#ffffff",
-  "categories": ["utilities"],
-  "screenshots": [
-    {
-      "src": "icon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    }
-  ],
+  "theme_color": "#1e3a8a",
+  "background_color": "#0f172a",
+  "categories": ["utilities", "productivity"],
   "icons": [
     {
-      "src": "icon-192x192.png",
+      "src": "/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icon-512x512.png",
+      "src": "/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icon-192x192-maskable.png",
+      "src": "/icon-192x192-maskable.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "icon-512x512-maskable.png",
+      "src": "/icon-512x512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Block App",
+      "short_name": "Block",
+      "url": "/?action=block",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     }
   ]
 }

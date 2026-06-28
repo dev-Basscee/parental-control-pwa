@@ -1,13 +1,19 @@
-export function cn(...classes: (string | undefined | null | false)[]): string {
-  return classes.filter(Boolean).join(' ')
+/**
+ * src/lib/utils.ts
+ * Shared utilities used across the frontend.
+ */
+
+/** Deterministic PIN hash using djb2 — client-side only, never sent to server */
+export function hashPin (pin: string): string {
+  let h = 5381
+  for (let i = 0; i < pin.length; i++) {
+    h = ((h << 5) + h) ^ pin.charCodeAt(i)
+    h = h >>> 0   // keep unsigned 32-bit
+  }
+  return h.toString(16)
 }
 
-export function hashPin(pin: string): string {
-  let hash = 0
-  for (let i = 0; i < pin.length; i++) {
-    const char = pin.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
-  }
-  return Math.abs(hash).toString(16)
+/** Merge CSS class names, filtering falsy values */
+export function cn (...classes: (string | undefined | null | false)[]): string {
+  return classes.filter(Boolean).join(' ')
 }

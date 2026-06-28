@@ -1,97 +1,76 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { Plus, Shield } from 'lucide-react'
 import { api, BlockedApp } from '@/lib/api'
-import { AddBlockModal } from './AddBlockModal'
 import { BlockListItem } from './BlockListItem'
-import { Plus } from 'lucide-react'
+import { AddBlockModal } from './AddBlockModal'
 
-interface BlocklistProps {
+interface Props {
   blocklist: BlockedApp[]
+  agentOnline: boolean
   onUpdate: () => void
 }
 
-export function Blocklist({ blocklist, onUpdate }: BlocklistProps) {
+export function Blocklist ({ blocklist, agentOnline, onUpdate }: Props) {
   const [showModal, setShowModal] = useState(false)
-  const [currentBlocklist, setCurrentBlocklist] = useState(blocklist)
 
-  useEffect(() => {
-    setCurrentBlocklist(blocklist)
-  }, [blocklist])
+  const active  = blocklist.filter((a) => a.blockType === 'indefinite' || (a.timeRemaining !== undefined && a.timeRemaining > 0))
+  const expired = blocklist.filter((a) => a.blockType === 'until_timestamp' && a.timeRemaining !== undefined && a.timeRemaining <= 0)
 
-  const handleAddApp = async (appName: string, duration: number) => {
-    await api.addToBlocklist(appName, duration)
+  const handleAdd = async (processName: string, displayName: string, minutes: number) => {
+    await api.addToBlocklist(processName, displayName, minutes)
     setShowModal(false)
     onUpdate()
   }
 
-  const handleRemoveApp = async (appId: string) => {
-    await api.removeFromBlocklist(appId)
+  const handleRemove = async (id: string) => {
+    await api.removeFromBlocklist(id)
     onUpdate()
   }
 
-  const activeBlocks = currentBlocklist.filter((app) => app.isBlocked)
-  const expiredBlocks = currentBlocklist.filter((app) => !app.isBlocked)
-
   return (
-    <div className="space-y-6">
-      {/* Add Button */}
+    <div className="space-y-5">
       <button
+        id="block-new-app-btn"
         onClick={() => setShowModal(true)}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+        disabled={!agentOnline}
+        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-blue-200 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-60 disabled:translate-y-0"
+        title={!agentOnline ? 'Agent must be running to block apps' : undefined}
       >
-        <Plus className="w-5 h-5" />
-        Block New App
+        <Plus className="w-5 h-5" strokeWidth={2.5} /> Block New App
       </button>
 
-      {/* Active Blocks */}
-      {activeBlocks.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">Currently Blocked</h2>
-          <div className="space-y-3">
-            {activeBlocks.map((app) => (
-              <BlockListItem
-                key={app.id}
-                app={app}
-                onRemove={handleRemoveApp}
-              />
-            ))}
+      {active.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Active ({active.length})</h2>
+          {active.map((app) => (
+            <BlockListItem key={app.id} app={app} onRemove={handleRemove} agentOnline={agentOnline} />
+          ))}
+        </section>
+      )}
+
+      {expired.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Expired</h2>
+          {expired.map((app) => (
+            <BlockListItem key={app.id} app={app} onRemove={handleRemove} agentOnline={agentOnline} isExpired />
+          ))}
+        </section>
+      )}
+
+      {blocklist.length === 0 && (
+        <div className="text-center py-16">
+          <div className="relative mx-auto mb-5 w-20 h-20">
+            <div className="absolute inset-0 bg-emerald-100 rounded-3xl rotate-6" />
+            <div className="relative bg-white rounded-3xl shadow-sm border border-gray-100 w-20 h-20 flex items-center justify-center">
+              <Shield className="w-9 h-9 text-emerald-500" strokeWidth={1.5} />
+            </div>
           </div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-1">All Clear</h3>
+          <p className="text-gray-400 text-sm">No apps are currently blocked.</p>
         </div>
       )}
 
-      {/* Expired Blocks */}
-      {expiredBlocks.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">Previously Blocked</h2>
-          <div className="space-y-3">
-            {expiredBlocks.map((app) => (
-              <BlockListItem
-                key={app.id}
-                app={app}
-                onRemove={handleRemoveApp}
-                isExpired={true}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {currentBlocklist.length === 0 && (
-        <div className="text-center py-12">
-          <div className="bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-            <span className="text-2xl">✓</span>
-          </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Blocked Apps</h3>
-          <p className="text-muted text-sm">All apps are currently accessible</p>
-        </div>
-      )}
-
-      {/* Add Block Modal */}
-      <AddBlockModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        onAdd={handleAddApp}
-      />
+      <AddBlockModal isOpen={showModal} onClose={() => setShowModal(false)} onAdd={handleAdd} />
     </div>
   )
 }

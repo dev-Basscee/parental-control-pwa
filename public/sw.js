@@ -1,101 +1,82 @@
-const CACHE_NAME = 'parental-control-v1'
-const STATIC_ASSETS = [
+/**
+ * sw.js — Parental Control PWA Service Worker
+ *
+ * Strategy:
+ *   /api/*        → Network-only (never cache live enforcement data)
+ *   Everything else → Cache-first with network fallback (app shell)
+ */
+
+const CACHE = 'guardian-v1'
+
+const SHELL = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/icon-192x192.png',
+  '/icon-512x512.png',
 ]
 
-// Install event
+// ── Install ────────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker...')
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching static assets')
-      return cache.addAll(STATIC_ASSETS)
-    }),
+    caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())
   )
-  self.skipWaiting()
 })
 
-// Activate event
+// ── Activate (prune old caches) ────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker...')
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('[SW] Deleting old cache:', cacheName)
-            return caches.delete(cacheName)
-          }
-        }),
-      )
-    }),
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   )
-  self.clients.claim()
 })
 
-// Fetch event - Network first for API, Cache first for static
+// ── Fetch ──────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event
+  const url = new URL(request.url)
 
-  // Skip non-GET requests
-  if (request.method !== 'GET') {
-    return
-  }
+  // Only intercept same-origin requests
+  if (url.origin !== self.location.origin) return
 
-  // API requests - network first
-  if (request.url.includes('/api/')) {
+  // API calls — network only, never cache
+  if (url.pathname.startsWith('/api/')) {
+    if (request.method !== 'GET') return
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache successful API responses
-          if (response.ok) {
-            const cache = caches.open(CACHE_NAME)
-            cache.then((c) => c.put(request, response.clone()))
-          }
-          return response
-        })
-        .catch(() => {
-          // Fall back to cache for API requests
-          return caches.match(request).then((response) => {
-            return response || new Response('Offline - API unavailable', { status: 503 })
-          })
-        }),
+      fetch(request).catch(() =>
+        new Response(
+          JSON.stringify({ error: 'Offline — enforcement agent unreachable' }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
     )
     return
   }
 
-  // Static assets - cache first
+  // Non-GET — pass through
+  if (request.method !== 'GET') return
+
+  // App shell — cache first, fall back to network, cache new responses
   event.respondWith(
-    caches.match(request).then((response) => {
-      if (response) {
-        return response
-      }
-
+    caches.match(request).then((cached) => {
+      if (cached) return cached
       return fetch(request).then((response) => {
-        // Don't cache non-successful responses
-        if (!response || response.status !== 200 || response.type === 'error') {
-          return response
+        if (response && response.status === 200 && response.type !== 'opaque') {
+          const clone = response.clone()
+          caches.open(CACHE).then((c) => c.put(request, clone))
         }
-
-        // Clone the response
-        const responseToCache = response.clone()
-
-        // Cache successful responses
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, responseToCache)
-        })
-
         return response
+      }).catch(() => {
+        // Navigation fallback
+        if (request.mode === 'navigate') return caches.match('/index.html')
+        return new Response('Offline', { status: 503 })
       })
-    }),
+    })
   )
 })
 
-// Message handler for cache management
+// ── Messages ───────────────────────────────────────────────────────────────────
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting()
-  }
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })

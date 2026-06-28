@@ -1,17 +1,13 @@
 import { LogOut } from 'lucide-react'
 
-interface LogoutButtonProps {
-  onLogout: () => void
-}
-
-export function LogoutButton({ onLogout }: LogoutButtonProps) {
+export function LogoutButton ({ onLogout }: { onLogout: () => void }) {
   return (
     <button
       onClick={onLogout}
-      className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600 hover:text-foreground"
+      className="p-2 rounded-xl text-blue-300 hover:bg-white/10 hover:text-white transition-colors"
       aria-label="Logout"
     >
-      <LogOut className="w-6 h-6" />
+      <LogOut className="w-5 h-5" />
     </button>
   )
 }

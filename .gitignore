@@ -1,18 +1,34 @@
-# v0 sandbox internal files
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+.pnpm-store/
+
+# ── Build output ──────────────────────────────────────────────────────────────
+dist/
+.next/
+out/
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Agent runtime data (machine-local — NEVER commit) ─────────────────────────
+# api-token.txt   — auto-generated secret shared between agent and proxy
+# blocklist.json  — live enforcement data
+# events.json     — live event log
+agent/data/
+
+# ── Editor / OS artefacts ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+*.log.*
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+pnpm-workspace.yaml
+.vercel/
+.snowflake/
+.v0-trash/
 __v0_runtime_loader.js
 __v0_devtools.tsx
 __v0_jsx-dev-runtime.ts
-.snowflake/
-.v0-trash/
-.vercel/
-
-# Environment variables
-.env*.local
-
-# Common ignores
-node_modules
-.next/
-.DS_Store
-
-# Agent runtime data (token, blocklist, logs — machine-local, never commit)
-agent/data/

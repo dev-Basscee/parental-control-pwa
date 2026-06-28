@@ -1,170 +1,117 @@
+/**
+ * server.js  —  Parental Control Unified Backend
+ *
+ * ONE process, ONE port (3000). Responsibilities:
+ *   1. Serve the built PWA from ./dist (production)
+ *   2. Read the shared API token from agent/data/api-token.txt
+ *   3. Forward /api/* to the enforcement agent on port 3001,
+ *      injecting X-API-Token server-side (browser never sees the token)
+ *
+ * Run order:
+ *   1.  node agent/src/index.js   ← enforcement agent (port 3001)
+ *   2.  node server.js            ← this file (port 3000)
+ *
+ * In development Vite (port 5173) already proxies /api → 3000,
+ * so the browser always talks to a single origin.
+ */
+
+'use strict'
+
 const express = require('express')
-const cors = require('cors')
-const { exec } = require('child_process')
-const { promisify } = require('util')
-const fs = require('fs')
-const path = require('path')
-const os = require('os')
+const cors    = require('cors')
+const fs      = require('fs')
+const path    = require('path')
+const http    = require('http')
 
-const execAsync = promisify(exec)
-const app = express()
-const PORT = 3001
+const app        = express()
+const PORT       = parseInt(process.env.PORT || '3000', 10)
+const AGENT_URL  = process.env.AGENT_URL || 'http://127.0.0.1:3001'
+const TOKEN_FILE = path.join(__dirname, 'agent', 'data', 'api-token.txt')
+const DIST_DIR   = path.join(__dirname, 'dist')
 
-// Middleware
-app.use(cors())
-app.use(express.json())
+// ─── Token helper ─────────────────────────────────────────────────────────────
 
-// Get installed Windows apps
-app.get('/api/installed-apps', async (req, res) => {
-  try {
-    const apps = await getInstalledApps()
-    res.json(apps)
-  } catch (error) {
-    console.error('Error fetching installed apps:', error)
-    // Return mock data if there's an error
-    res.json(getMockApps())
-  }
-})
-
-// Get a single app by process name
-app.get('/api/app/:processName', async (req, res) => {
-  try {
-    const { processName } = req.params
-    const apps = await getInstalledApps()
-    const app = apps.find(
-      (a) => a.processName.toLowerCase() === processName.toLowerCase()
-    )
-
-    if (app) {
-      res.json(app)
-    } else {
-      res.status(404).json({ error: 'App not found' })
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch app' })
-  }
-})
-
-// Get all processes currently running
-app.get('/api/running-processes', async (req, res) => {
-  try {
-    const processes = await getRunningProcesses()
-    res.json(processes)
-  } catch (error) {
-    console.error('Error fetching running processes:', error)
-    res.json([])
-  }
-})
-
-async function getInstalledApps() {
-  try {
-    // Try to get apps from Windows registry or Program Files
-    const apps = []
-
-    // Method 1: Check Program Files directories
-    const programFilesPath = process.env.ProgramFiles || 'C:\\Program Files'
-    const programFilesX86 =
-      process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)'
-
-    const dirs = [programFilesPath, programFilesX86]
-
-    for (const dir of dirs) {
-      if (fs.existsSync(dir)) {
-        try {
-          const entries = fs.readdirSync(dir)
-          for (const entry of entries.slice(0, 50)) {
-            // Limit to first 50 to avoid slowdown
-            const fullPath = path.join(dir, entry)
-            try {
-              const stat = fs.statSync(fullPath)
-
-              if (stat.isDirectory() && !entry.startsWith('.')) {
-                // Look for executables
-                try {
-                  const exePath = path.join(fullPath, `${entry}.exe`)
-                  if (fs.existsSync(exePath)) {
-                    apps.push({
-                      displayName: entry,
-                      processName: `${entry}.exe`,
-                      path: exePath,
-                    })
-                  }
-                } catch {}
-              }
-            } catch {}
-          }
-        } catch {}
-      }
-    }
-
-    // If we found some apps, return them sorted. Otherwise return mock data
-    if (apps.length > 0) {
-      return apps.sort((a, b) =>
-        a.displayName.localeCompare(b.displayName)
-      )
-    }
-
-    return getMockApps()
-  } catch (error) {
-    console.error('Error in getInstalledApps:', error)
-    return getMockApps()
-  }
+function readToken () {
+  try { return fs.readFileSync(TOKEN_FILE, 'utf8').trim() }
+  catch { return null }
 }
 
-async function getRunningProcesses() {
-  try {
-    const { stdout } = await execAsync(
-      'tasklist /FO CSV /NH',
-      { encoding: 'utf-8' }
-    )
+// ─── Middleware ───────────────────────────────────────────────────────────────
 
-    const lines = stdout.split('\n').filter((line) => line.trim())
-    const processes = lines.map((line) => {
-      const parts = line.split(',')
-      return {
-        name: parts[0]?.replace(/"/g, ''),
-        pid: parseInt(parts[1]?.replace(/"/g, '') || '0'),
-      }
+app.use(cors({
+  origin: [
+    'http://localhost:3000', 'http://127.0.0.1:3000',
+    'http://localhost:5173', 'http://127.0.0.1:5173',   // Vite dev server
+  ],
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+}))
+
+app.use(express.json({ limit: '512kb' }))
+
+// ─── /api/health — public, proxied to agent ───────────────────────────────────
+
+app.get('/api/health', (_req, res) => {
+  const token = readToken()
+  const agentReq = http.request(`${AGENT_URL}/api/health`, { method: 'GET' }, (agentRes) => {
+    let body = ''
+    agentRes.on('data', (c) => (body += c))
+    agentRes.on('end', () => {
+      try { res.json({ proxy: 'ok', tokenPresent: !!token, agent: JSON.parse(body) }) }
+      catch { res.json({ proxy: 'ok', tokenPresent: !!token, agent: 'parse_error' }) }
     })
-
-    return processes.filter((p) => p.name && !isNaN(p.pid))
-  } catch (error) {
-    console.error('Error fetching running processes:', error)
-    return []
-  }
-}
-
-function getMockApps() {
-  return [
-    { displayName: 'Google Chrome', processName: 'chrome.exe' },
-    { displayName: 'Mozilla Firefox', processName: 'firefox.exe' },
-    { displayName: 'Microsoft Edge', processName: 'msedge.exe' },
-    { displayName: 'Discord', processName: 'Discord.exe' },
-    { displayName: 'Spotify', processName: 'Spotify.exe' },
-    { displayName: 'Steam', processName: 'steam.exe' },
-    { displayName: 'Epic Games Launcher', processName: 'EpicGamesLauncher.exe' },
-    { displayName: 'Visual Studio Code', processName: 'Code.exe' },
-    { displayName: 'Notepad++', processName: 'notepad++.exe' },
-    { displayName: 'VLC Media Player', processName: 'vlc.exe' },
-    { displayName: 'OBS Studio', processName: 'obs64.exe' },
-    { displayName: 'Blender', processName: 'blender.exe' },
-    { displayName: 'Adobe Photoshop', processName: 'Photoshop.exe' },
-    { displayName: 'Slack', processName: 'Slack.exe' },
-    { displayName: 'Telegram', processName: 'Telegram.exe' },
-    { displayName: 'WhatsApp', processName: 'WhatsApp.exe' },
-    { displayName: 'YouTube Music', processName: 'YouTubeMusic.exe' },
-    { displayName: 'Twitch', processName: 'Twitch.exe' },
-    { displayName: 'Roblox', processName: 'RobloxPlayerBeta.exe' },
-    { displayName: 'Minecraft Launcher', processName: 'javaw.exe' },
-    { displayName: 'Java', processName: 'java.exe' },
-    { displayName: 'Python', processName: 'python.exe' },
-    { displayName: 'Node.js', processName: 'node.exe' },
-    { displayName: 'Git Bash', processName: 'bash.exe' },
-    { displayName: 'PowerShell', processName: 'pwsh.exe' },
-  ].sort((a, b) => a.displayName.localeCompare(b.displayName))
-}
-
-app.listen(PORT, () => {
-  console.log(`[Parental Control Backend] Server running on port ${PORT}`)
-  console.log(`API endpoint: http://localhost:${PORT}/api/installed-apps`)
+  })
+  agentReq.on('error', () => res.json({ proxy: 'ok', tokenPresent: !!token, agent: 'unreachable' }))
+  agentReq.end()
 })
+
+// ─── /api/* — authenticated proxy to enforcement agent ───────────────────────
+
+app.all('/api/*', (req, res) => {
+  const token = readToken()
+  if (!token) {
+    return res.status(503).json({ error: 'Agent token not found. Is the enforcement agent running?' })
+  }
+
+  const proxyReq = http.request(
+    `${AGENT_URL}${req.originalUrl}`,
+    { method: req.method, headers: { 'Content-Type': 'application/json', 'X-API-Token': token } },
+    (agentRes) => {
+      res.status(agentRes.statusCode || 500).set('Content-Type', 'application/json')
+      agentRes.pipe(res)
+    }
+  )
+  proxyReq.on('error', (err) => {
+    console.error(`[proxy] ${req.method} ${req.originalUrl} → ${err.message}`)
+    res.status(502).json({ error: 'Could not reach enforcement agent', detail: err.message })
+  })
+  if (req.body && Object.keys(req.body).length > 0) proxyReq.write(JSON.stringify(req.body))
+  proxyReq.end()
+})
+
+// ─── Serve built PWA (production) ─────────────────────────────────────────────
+
+if (fs.existsSync(DIST_DIR)) {
+  // Hashed assets get long cache; everything else short cache
+  app.use('/assets', express.static(path.join(DIST_DIR, 'assets'), { maxAge: '1y', immutable: true }))
+  app.use(express.static(DIST_DIR, { maxAge: '1h' }))
+  // SPA fallback — all non-API routes return index.html
+  app.get('*', (req, res) => res.sendFile(path.join(DIST_DIR, 'index.html')))
+} else {
+  console.warn('[server] ./dist not found — run `npm run build` to create production files')
+}
+
+// ─── Start ────────────────────────────────────────────────────────────────────
+
+app.listen(PORT, '127.0.0.1', () => {
+  console.log('═══════════════════════════════════════════════════════════')
+  console.log('  Parental Control  |  Backend Server')
+  console.log('═══════════════════════════════════════════════════════════')
+  console.log(`  Server : http://127.0.0.1:${PORT}`)
+  console.log(`  Agent  : ${AGENT_URL}`)
+  console.log(`  Token  : ${readToken() ? '✓ loaded' : '✗ NOT FOUND — start agent first'}`)
+  console.log(`  PWA    : ${fs.existsSync(DIST_DIR) ? '✓ serving from ./dist' : '⚠ not built yet'}`)
+  console.log('═══════════════════════════════════════════════════════════')
+})
+
+process.on('uncaughtException', (err) => { console.error('[server]', err); process.exit(1) })
