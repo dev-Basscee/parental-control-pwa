@@ -1,19 +1,34 @@
-import { useState, useEffect } from 'react'
-import { auth } from './lib/api'
+import { useState, useEffect, useCallback } from 'react'
+import { auth, api } from './lib/api'
 import { Onboarding } from './components/Onboarding'
 import { Login } from './components/Login'
 import { Dashboard } from './components/Dashboard'
+import { AgentSetup } from './components/AgentSetup'
 
-type View = 'loading' | 'onboarding' | 'login' | 'dashboard'
+type View = 'loading' | 'setup' | 'onboarding' | 'login' | 'dashboard'
 
 export default function App () {
   const [view, setView] = useState<View>('loading')
 
-  useEffect(() => {
+  const init = useCallback(async () => {
+    setView('loading')
+    const health = await api.healthCheck()
+    
+    // If agent is not online, show the installer screen
+    if (!health.agentOnline) {
+      setView('setup')
+      return
+    }
+
+    // Normal routing
     if (!auth.hasPin()) setView('onboarding')
     else if (auth.isAuthenticated()) setView('dashboard')
     else setView('login')
   }, [])
+
+  useEffect(() => {
+    init()
+  }, [init])
 
   if (view === 'loading') {
     return (
@@ -25,6 +40,9 @@ export default function App () {
 
   return (
     <>
+      {view === 'setup' && (
+        <AgentSetup onCheckAgain={init} />
+      )}
       {view === 'onboarding' && (
         <Onboarding onComplete={() => setView('dashboard')} />
       )}

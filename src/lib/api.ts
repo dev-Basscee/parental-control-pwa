@@ -1,17 +1,23 @@
 /**
  * src/lib/api.ts
  *
- * Single source-of-truth for all backend communication.
- *
  * In dev:  Vite proxies /api/* → http://localhost:3000/api/*
- * In prod: server.js serves /api/* and the built PWA on the same origin
+ * In prod (Vercel): frontend is on knoxs.vercel.app, agent runs locally on
+ *   the child's PC at http://localhost:3000. Browsers allow HTTPS pages to
+ *   fetch from localhost (treated as a trustworthy origin per W3C spec).
  *
- * The agent token is NEVER handled in the browser — server.js injects it.
+ * The agent token is NEVER in the browser — server.js injects it server-side.
  */
 
 import { hashPin } from './utils'
 
-const API = '/api'
+// In dev: use relative /api (Vite proxy handles it)
+// In prod: call the local server directly — localhost is allowed from HTTPS
+const API = import.meta.env.PROD
+  ? 'http://localhost:3000/api'
+  : '/api'
+
+export const LOCAL_AGENT_URL = 'http://localhost:3000'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,12 +28,12 @@ export interface BlockedApp {
   blockType: 'indefinite' | 'until_timestamp'
   expiresAt: string | null
   createdAt: string
-  timeRemaining?: number          // seconds, provided by agent
+  timeRemaining?: number
 }
 
 export interface ActivityLog {
   id: string
-  timestamp: string               // ISO
+  timestamp: string
   action: AgentAction
   processName: string
   displayName: string
@@ -47,39 +53,30 @@ export interface InstalledApp {
   processName: string
 }
 
-// ─── Auth (client-side PIN, token in localStorage) ────────────────────────────
+// ─── Auth (client-side PIN hash in localStorage) ─────────────────────────────
 
 let _failedAttempts = 0
 const MAX_ATTEMPTS  = 5
 let _lockoutUntil   = 0
 
 export const auth = {
-  /**
-   * First call (no stored hash): sets the PIN.
-   * Subsequent calls: verifies against stored hash.
-   */
   verifyPin (pin: string): { success: boolean; error?: string } {
     if (_lockoutUntil > Date.now()) {
       const secs = Math.ceil((_lockoutUntil - Date.now()) / 1000)
       return { success: false, error: `Too many failed attempts. Try again in ${secs}s.` }
     }
-
     const stored = localStorage.getItem('pin_hash')
-
     if (!stored) {
-      // First-time setup — store hash and mark authenticated
       localStorage.setItem('pin_hash', hashPin(pin))
       localStorage.setItem('auth_token', crypto.randomUUID())
       _failedAttempts = 0
       return { success: true }
     }
-
     if (hashPin(pin) === stored) {
       _failedAttempts = 0
       localStorage.setItem('auth_token', crypto.randomUUID())
       return { success: true }
     }
-
     _failedAttempts++
     if (_failedAttempts >= MAX_ATTEMPTS) {
       _lockoutUntil = Date.now() + 5 * 60 * 1000
@@ -89,18 +86,9 @@ export const auth = {
     const left = MAX_ATTEMPTS - _failedAttempts
     return { success: false, error: `Incorrect PIN. ${left} attempt${left !== 1 ? 's' : ''} remaining.` }
   },
-
-  logout () {
-    localStorage.removeItem('auth_token')
-  },
-
-  isAuthenticated (): boolean {
-    return !!localStorage.getItem('auth_token')
-  },
-
-  hasPin (): boolean {
-    return !!localStorage.getItem('pin_hash')
-  },
+  logout ()              { localStorage.removeItem('auth_token') },
+  isAuthenticated ()     { return !!localStorage.getItem('auth_token') },
+  hasPin ()              { return !!localStorage.getItem('pin_hash') },
 }
 
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
@@ -120,8 +108,6 @@ async function request<T> (path: string, init?: RequestInit): Promise<T> {
 // ─── Agent API ────────────────────────────────────────────────────────────────
 
 export const api = {
-
-  // Health
   async healthCheck (): Promise<{ ok: boolean; agentOnline: boolean }> {
     try {
       const d = await request<{ proxy: string; agent: { status: string } | string }>('/health')
@@ -131,23 +117,15 @@ export const api = {
     }
   },
 
-  // Blocklist
   async getBlocklist (): Promise<BlockedApp[]> {
     return request<BlockedApp[]>('/blocklist')
   },
 
-  async addToBlocklist (
-    processName: string,
-    displayName: string,
-    durationMinutes: number
-  ): Promise<BlockedApp> {
+  async addToBlocklist (processName: string, displayName: string, durationMinutes: number): Promise<BlockedApp> {
     const body = durationMinutes === 0
       ? { processName, displayName, blockType: 'indefinite' }
-      : {
-          processName, displayName,
-          blockType: 'until_timestamp',
-          expiresAt: new Date(Date.now() + durationMinutes * 60_000).toISOString(),
-        }
+      : { processName, displayName, blockType: 'until_timestamp',
+          expiresAt: new Date(Date.now() + durationMinutes * 60_000).toISOString() }
     return request<BlockedApp>('/blocklist', { method: 'POST', body: JSON.stringify(body) })
   },
 
@@ -155,12 +133,10 @@ export const api = {
     await request<{ success: boolean }>(`/blocklist/${id}`, { method: 'DELETE' })
   },
 
-  // Activity log
   async getActivityLog (limit = 100): Promise<ActivityLog[]> {
     return request<ActivityLog[]>(`/logs?limit=${limit}`)
   },
 
-  // Processes
   async getRunningProcesses (): Promise<RunningProcess[]> {
     return request<RunningProcess[]>('/processes')
   },
